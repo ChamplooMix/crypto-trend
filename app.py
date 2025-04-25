@@ -53,7 +53,8 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     if df.empty:
         return 'NEUTRAL', df
     # Bollinger Bänder
-    bb_df = ta.bbands(df['close'], length=20, std=2)
+    # Bollinger Bänder mit MA-Länge 14 und Standardabweichung 2 (gemäß TradingView-Einstellungen)
+bb_df = ta.bbands(df['close'], length=14, std=2)
     df = df.join(bb_df)
     # RSI
     df['RSI'] = ta.rsi(df['close'], length=14)
@@ -85,20 +86,27 @@ for tf in timeframes:
     signal_tf, df_tf = compute_signals(df_tf)
     st.metric(label="Signal", value=signal_tf)
     if not df_tf.empty:
-        fig = go.Figure()
-        fig.add_trace(go.Line(x=df_tf.index, y=df_tf['close'], name='Close'))
-        fig.add_trace(go.Line(
-            x=df_tf.index,
-            y=df_tf.get('BBU_20_2.0', []),
-            name='BB Upper',
-            line=dict(dash='dash')
-        ))
-        fig.add_trace(go.Line(
-            x=df_tf.index,
-            y=df_tf.get('BBL_20_2.0', []),
-            name='BB Lower',
-            line=dict(dash='dash')
-        ))
-        st.plotly_chart(fig, use_container_width=True)
+        # Preis-Chart mit Bollinger Bändern
+        fig_price = go.Figure()
+        fig_price.add_trace(go.Line(x=df_tf.index, y=df_tf['close'], name='Close'))
+        fig_price.add_trace(go.Line(x=df_tf.index, y=df_tf.get('BBU_14_2.0', []), name='BB Upper', line=dict(dash='dash')))
+        fig_price.add_trace(go.Line(x=df_tf.index, y=df_tf.get('BBL_14_2.0', []), name='BB Lower', line=dict(dash='dash')))
+        st.plotly_chart(fig_price, use_container_width=True)
+        
+        # RSI-Chart mit Zonen
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Line(x=df_tf.index, y=df_tf['RSI'], name='RSI'))
+        # Linien für 30, 50, 70
+        fig_rsi.add_hline(y=70, line=dict(color='red', dash='dash'), annotation_text='Overbought 70', annotation_position='top')
+        fig_rsi.add_hline(y=50, line=dict(color='grey', dash='dot'), annotation_text='Mid 50', annotation_position='bottom')
+        fig_rsi.add_hline(y=30, line=dict(color='green', dash='dash'), annotation_text='Oversold 30', annotation_position='bottom')
+        # Schattierung zwischen 30 und 70
+        fig_rsi.update_layout(
+            shapes=[
+                dict(type='rect', xref='paper', x0=0, x1=1, yref='y', y0=30, y1=70, fillcolor='LightSalmon', opacity=0.2, layer='below')
+            ],
+            yaxis=dict(range=[0, 100])
+        )
+        st.plotly_chart(fig_rsi, use_container_width=True)
     else:
         st.write("Keine Daten verfügbar für dieses Zeitfenster.")
