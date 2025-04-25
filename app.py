@@ -1,3 +1,4 @@
+# Workaround für pandas_ta Import-Error: numpy muss NaN exportieren
 import numpy as np
 np.NaN = np.nan
 
@@ -38,7 +39,6 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
     df.set_index("timestamp", inplace=True)
     return df
 
-
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     bb = df["close"].ta.bbands(length=20, std=2)
     df = df.join(bb)
@@ -64,7 +64,6 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     return "NEUTRAL", df
 
 # Laden & Ausführen
-
 df = fetch_ohlcv(symbol, timeframe, limit)
 signal, df = compute_signals(df)
 
@@ -97,103 +96,3 @@ with col2:
     st.write("**Details:**")
     st.write(f"RSI: {df.iloc[-1]['RSI']:.2f}")
     st.write(f"Volumen vs. MA: {df.iloc[-1]['volume']:.0f} vs. {df.iloc[-1]['vol_ma']:.0f}")
-```
-
----
-## requirements.txt
-```text
-numpy>=1.22.0            # muss vor pandas_ta installiert werden
-pandas>=1.3.0
-pandas_ta>=0.4.5
-ccxt
-plotly
-streamlit
-pytest
-Cython>=0.29.30          # für das Kompilieren von Abhängigkeiten
-```
-
----
-## runtime.txt
-```text
-python-3.10.12
-```
-
----
-## README.md
-```markdown
-# Crypto Signals WebApp
-
-Eine Streamlit-App, die Kauf- und Short-Signale für Kryptowährungen liefert.
-
-## Dateien
-- `app.py`: Hauptanwendung
-- `requirements.txt`: Abhängigkeiten
-- `runtime.txt`: Python-Version für Streamlit Cloud
-- `.streamlit/config.toml`: Theme-Settings
-- `streamlit.toml`: optionale Server-Konfiguration
-- `tests/`: Unit-Tests
-
-## Deployment
-1. Repo pushen
-2. Streamlit Cloud → New app → Repo & `main` auswählen → Deploy
-
-## Entwickeln lokal
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-streamlit run app.py
-```
-```
-
----
-## .streamlit/config.toml
-```toml
-[theme]
-primaryColor = "#207373"
-backgroundColor = "#044647"
-secondaryBackgroundColor = "#99cccc"
-textColor = "#cae3e3"
-font = "sans serif"
-```
-
----
-## streamlit.toml (optional)
-```toml
-[server]
-headless = true
-port = $PORT
-enableCORS = false
-```
-
----
-## .gitignore
-```gitignore
-venv/
-__pycache__/
-.env
-.streamlit/
-!.streamlit/config.toml
-*.pyc
-.DS_Store
-```
-
----
-## tests/test_signals.py
-```python
-import pandas as pd
-from app import compute_signals
-
-def test_constant_data_neutral():
-    idx = pd.date_range(start='2025-01-01', periods=30, freq='T')
-    df = pd.DataFrame({
-        'timestamp': idx,
-        'open': [100]*30,
-        'high': [100]*30,
-        'low': [100]*30,
-        'close': [100]*30,
-        'volume': [100]*30
-    }).set_index('timestamp')
-    signal, _ = compute_signals(df)
-    assert signal == 'NEUTRAL'
-```
