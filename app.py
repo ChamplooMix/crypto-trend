@@ -1,5 +1,3 @@
-# app.py
-```python
 # Workaround für pandas_ta Import-Error: numpy muss NaN exportieren
 import numpy as np
 np.NaN = np.nan
@@ -31,7 +29,6 @@ limit = st.sidebar.slider(
 
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
-    # Versuche mehrere Exchanges als Fallback
     exchanges = [
         ('Binance', ccxt.binance({'enableRateLimit': True})),
         ('Kraken', ccxt.kraken({'enableRateLimit': True})),
@@ -45,7 +42,7 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
             st.warning(f"{name} konnte nicht abgerufen werden: {e}")
             continue
     if data is None:
-        st.error('Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.')
+        st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
         return pd.DataFrame(columns=['timestamp','open','high','low','close','volume'])
     df = pd.DataFrame(
         data,
@@ -58,7 +55,7 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
 
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     if df.empty:
-        return "NEUTRAL", df
+        return 'NEUTRAL', df
     bb = df['close'].ta.bbands(length=20, std=2)
     df = df.join(bb)
     df['RSI'] = df['close'].ta.rsi(14)
@@ -82,7 +79,7 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
         return 'SHORT', df
     return 'NEUTRAL', df
 
-# Laden & Ausführen
+# Daten holen & Signale berechnen
 df = fetch_ohlcv(symbol, timeframe, limit)
 signal, df = compute_signals(df)
 
@@ -114,4 +111,3 @@ else:
         st.write('**Details:**')
         st.write(f"RSI: {df.iloc[-1].get('RSI', 0):.2f}")
         st.write(f"Volumen vs. MA: {df.iloc[-1].get('volume', 0):.0f} vs. {df.iloc[-1].get('vol_ma', 0):.0f}")
-```
