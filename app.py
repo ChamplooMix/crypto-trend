@@ -20,31 +20,34 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
         ccxt.binance({'enableRateLimit': True}),
         ccxt.kraken({'enableRateLimit': True}),
     ]
+    data = None
     for exchange in exchanges:
         try:
             data = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=lim)
-            df = pd.DataFrame(data, columns=['timestamp','open','high','low','close','volume'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
-            return df
+            break
         except Exception:
             continue
-    st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
-    return pd.DataFrame(columns=['timestamp','open','high','low','close','volume'])
+    if data is None:
+        st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
+        return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    df.set_index('timestamp', inplace=True)
+    return df
 
 
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     if df.empty:
         return 'NEUTRAL', df
-    bb = df['close'].ta.bbands(length=20, std=2)
+    bb = ta.bbands(df['close'], length=20, std=2)
     df = df.join(bb)
-    df['RSI'] = df['close'].ta.rsi(14)
+    df['RSI'] = ta.rsi(df['close'], length=14)
     df['vol_ma'] = df['volume'].rolling(20).mean()
     last = df.iloc[-1]
     signals = []
-    if last['close'] < last['BBL_20_2.0']:
+    if last['close'] < last.get('BBL_20_2.0', float('nan')):
         signals.append('BUY')
-    if last['close'] > last['BBU_20_2.0']:
+    if last['close'] > last.get('BBU_20_2.0', float('nan')):
         signals.append('SHORT')
     if last['RSI'] < 30:
         signals.append('BUY')
@@ -71,12 +74,12 @@ else:
     with col1:
         fig = go.Figure()
         fig.add_trace(go.Line(x=df.index, y=df['close'], name='Close'))
-        fig.add_trace(go.Line(x=df.index, y=df['BBU_20_2.0'], name='BB Upper', line=dict(dash='dash')))
-        fig.add_trace(go.Line(x=df.index, y=df['BBL_20_2.0'], name='BB Lower', line=dict(dash='dash')))
+        fig.add_trace(go.Line(x=df.index, y=df.get('BBU_20_2.0', []), name='BB Upper', line=dict(dash='dash')))
+        fig.add_trace(go.Line(x=df.index, y=df.get('BBL_20_2.0', []), name='BB Lower', line=dict(dash='dash')))
         st.plotly_chart(fig, use_container_width=True)
     with col2:
         st.metric(label='Overall Signal', value=signal)
         st.markdown('---')
         st.write('**Details:**')
         st.write(f"RSI: {df.iloc[-1]['RSI']:.2f}")
-        st.write(f"Volumen vs. MA: {df.iloc[-1]['volume']:.0f} vs. {df.iloc[-1]['vol_ma']:.0f}")
+        st.write(f"Volumen vs. MA: {df.iloc[-1]['volume']} vs. {df.iloc[-1]['vol_ma']}")
