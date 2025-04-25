@@ -1,7 +1,7 @@
 streamlit
 ccxt
 pandas
-numpy
-pandas_ta
+numpy>=1.22.0
+pandas_ta>=0.4.5
 plotly
 pytest
