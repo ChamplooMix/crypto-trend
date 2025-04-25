@@ -1,5 +1,5 @@
 import numpy as np
-np.NaN = np.nan
+np.NaN = np.nan  # Workaround für pandas_ta Import-Error
 
 import streamlit as st
 import ccxt
@@ -8,50 +8,48 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 from collections import Counter
 
-st.set_page_config(page_title="Crypto Signals", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Crypto Signals",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# Sidebar-Einstellungen
 symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT"], index=0)
 timeframe = st.sidebar.radio("Timeframe", ["5m", "15m", "60m", "240m", "1d"], index=0)
 limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
 
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
+    # Versuche mehrere Exchanges als Fallback
     exchanges = [
         ccxt.binance({'enableRateLimit': True}),
         ccxt.kraken({'enableRateLimit': True}),
     ]
-    data = None
     for exchange in exchanges:
         try:
             data = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=lim)
-            break
+            df = pd.DataFrame(data, columns=['timestamp','open','high','low','close','volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            return df
         except Exception:
             continue
-    if data is None:
-        st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
-        return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df.set_index('timestamp', inplace=True)
-    return df
-
+    st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
+    return pd.DataFrame(columns=['timestamp','open','high','low','close','volume'])
 
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     if df.empty:
         return 'NEUTRAL', df
-    # Bollinger Bänder über pandas_ta Funktionen berechnen
+    # Bollinger Bänder
     bb_df = ta.bbands(df['close'], length=20, std=2)
-    # bb_df enthält Spalten BBL_20_2.0, BBM_20_2.0, BBU_20_2.0
     df = df.join(bb_df)
-    # RSI über pandas_ta Funktion
-    rsi_series = ta.rsi(df['close'], length=14)
-    df['RSI'] = rsi_series
+    # RSI
+    df['RSI'] = ta.rsi(df['close'], length=14)
     # Volumen-MA
     df['vol_ma'] = df['volume'].rolling(20).mean()
-    # Letzter Datensatz
     last = df.iloc[-1]
     signals = []
-    # Signallogik
     if last['close'] < last['BBL_20_2.0']:
         signals.append('BUY')
     if last['close'] > last['BBU_20_2.0']:
@@ -62,7 +60,6 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
         signals.append('SHORT')
     if last['volume'] > last['vol_ma']:
         signals.append('BUY')
-    # Mehrheit überwinden
     cnt = Counter(signals)
     if cnt.get('BUY', 0) >= 2:
         return 'BUY', df
@@ -74,6 +71,7 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
 df = fetch_ohlcv(symbol, timeframe, limit)
 signal, df = compute_signals(df)
 
+# Ausgabe
 st.title(f"📊 Signals: {symbol} [{timeframe}]")
 if df.empty:
     st.warning('Keine Marktdaten verfügbar. Bitte später erneut versuchen.')
@@ -82,12 +80,22 @@ else:
     with col1:
         fig = go.Figure()
         fig.add_trace(go.Line(x=df.index, y=df['close'], name='Close'))
-        fig.add_trace(go.Line(x=df.index, y=df.get('BBU_20_2.0', []), name='BB Upper', line=dict(dash='dash')))
-        fig.add_trace(go.Line(x=df.index, y=df.get('BBL_20_2.0', []), name='BB Lower', line=dict(dash='dash')))
+        fig.add_trace(go.Line(
+            x=df.index,
+            y=df['BBU_20_2.0'],
+            name='BB Upper',
+            line=dict(dash='dash')
+        ))
+        fig.add_trace(go.Line(
+            x=df.index,
+            y=df['BBL_20_2.0'],
+            name='BB Lower',
+            line=dict(dash='dash')
+        ))
         st.plotly_chart(fig, use_container_width=True)
     with col2:
         st.metric(label='Overall Signal', value=signal)
         st.markdown('---')
         st.write('**Details:**')
         st.write(f"RSI: {df.iloc[-1]['RSI']:.2f}")
-        st.write(f"Volumen vs. MA: {df.iloc[-1]['volume']} vs. {df.iloc[-1]['vol_ma']}")
+        st.write(f"Volumen vs. MA: {df.iloc[-1]['volume']:.0f} vs. {df.iloc[-1]['vol_ma']:.0f}")
