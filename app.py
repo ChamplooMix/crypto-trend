@@ -1,4 +1,3 @@
-# Workaround für pandas_ta Import-Error: numpy muss NaN exportieren
 import numpy as np
 np.NaN = np.nan
 
@@ -21,20 +20,17 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
         ccxt.binance({'enableRateLimit': True}),
         ccxt.kraken({'enableRateLimit': True}),
     ]
-    data = None
     for exchange in exchanges:
         try:
             data = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=lim)
-            break
+            df = pd.DataFrame(data, columns=['timestamp','open','high','low','close','volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            return df
         except Exception:
             continue
-    if data is None:
-        st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
-        return pd.DataFrame(columns=['timestamp','open','high','low','close','volume'])
-    df = pd.DataFrame(data, columns=['timestamp','open','high','low','close','volume'])
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df.set_index('timestamp', inplace=True)
-    return df
+    st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
+    return pd.DataFrame(columns=['timestamp','open','high','low','close','volume'])
 
 
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
