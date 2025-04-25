@@ -1,6 +1,6 @@
-# Workaround für pandas_ta Import-Error: numpy.NaN sicherstellen
+# Workaround für pandas_ta Import-Error: numpy muss NaN exportieren
 import numpy as np
-np.NaN = np.nan
+setattr(np, 'NaN', np.nan)
 
 import streamlit as st
 import ccxt
@@ -17,15 +17,31 @@ st.set_page_config(
 )
 
 # Sidebar
-symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT"], index=0)
-timeframe = st.sidebar.radio("Timeframe", ["5m", "15m", "60m", "240m", "1d"], index=0)
-limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
+symbol = st.sidebar.selectbox(
+    "Symbol",
+    ["BTC/USDT", "ETH/USDT", "ADA/USDT"],
+    index=0
+)
+timeframe = st.sidebar.radio(
+    "Timeframe",
+    ["5m", "15m", "60m", "240m", "1d"],
+    index=0
+)
+limit = st.sidebar.slider(
+    "Kerzenanzahl",
+    min_value=50,
+    max_value=500,
+    value=200
+)
 
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
     exchange = ccxt.binance()
     data = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=lim)
-    df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    df = pd.DataFrame(
+        data,
+        columns=["timestamp", "open", "high", "low", "close", "volume"]
+    )
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df.set_index("timestamp", inplace=True)
     return df
@@ -66,8 +82,18 @@ col1, col2 = st.columns((3, 1))
 with col1:
     fig = go.Figure()
     fig.add_trace(go.Line(x=df.index, y=df["close"], name="Close"))
-    fig.add_trace(go.Line(x=df.index, y=df["BBU_20_2.0"], name="BB Upper", line=dict(dash="dash")))
-    fig.add_trace(go.Line(x=df.index, y=df["BBL_20_2.0"], name="BB Lower", line=dict(dash="dash")))
+    fig.add_trace(go.Line(
+        x=df.index,
+        y=df["BBU_20_2.0"],
+        name="BB Upper",
+        line=dict(dash="dash")
+    ))
+    fig.add_trace(go.Line(
+        x=df.index,
+        y=df["BBL_20_2.0"],
+        name="BB Lower",
+        line=dict(dash="dash")
+    ))
     st.plotly_chart(fig, use_container_width=True)
 with col2:
     st.metric(label="Overall Signal", value=signal)
