@@ -39,15 +39,22 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     if df.empty:
         return 'NEUTRAL', df
-    bb = ta.bbands(df['close'], length=20, std=2)
-    df = df.join(bb)
-    df['RSI'] = ta.rsi(df['close'], length=14)
+    # Bollinger Bänder über pandas_ta Funktionen berechnen
+    bb_df = ta.bbands(df['close'], length=20, std=2)
+    # bb_df enthält Spalten BBL_20_2.0, BBM_20_2.0, BBU_20_2.0
+    df = df.join(bb_df)
+    # RSI über pandas_ta Funktion
+    rsi_series = ta.rsi(df['close'], length=14)
+    df['RSI'] = rsi_series
+    # Volumen-MA
     df['vol_ma'] = df['volume'].rolling(20).mean()
+    # Letzter Datensatz
     last = df.iloc[-1]
     signals = []
-    if last['close'] < last.get('BBL_20_2.0', float('nan')):
+    # Signallogik
+    if last['close'] < last['BBL_20_2.0']:
         signals.append('BUY')
-    if last['close'] > last.get('BBU_20_2.0', float('nan')):
+    if last['close'] > last['BBU_20_2.0']:
         signals.append('SHORT')
     if last['RSI'] < 30:
         signals.append('BUY')
@@ -55,6 +62,7 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
         signals.append('SHORT')
     if last['volume'] > last['vol_ma']:
         signals.append('BUY')
+    # Mehrheit überwinden
     cnt = Counter(signals)
     if cnt.get('BUY', 0) >= 2:
         return 'BUY', df
