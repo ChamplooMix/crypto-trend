@@ -1,6 +1,7 @@
 import streamlit as st
 import ccxt
 import pandas as pd
+import numpy as np
 import pandas_ta as ta
 import plotly.graph_objects as go
 from collections import Counter
@@ -13,14 +14,12 @@ st.set_page_config(
 )
 
 # Sidebar
-st.sidebar.title("Settings 🛠️")
 symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT"], index=0)
 timeframe = st.sidebar.radio("Timeframe", ["5m", "15m", "60m", "240m", "1d"], index=0)
 limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
 
-# Daten holen
 @st.cache_data
-def fetch_ohlcv(symbol, tf, lim):
+def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
     exchange = ccxt.binance()
     data = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=lim)
     df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -28,14 +27,13 @@ def fetch_ohlcv(symbol, tf, lim):
     df.set_index("timestamp", inplace=True)
     return df
 
-# Signale berechnen
-def compute_signals(df):
+def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     bb = df["close"].ta.bbands(length=20, std=2)
     df = df.join(bb)
     df["RSI"] = df["close"].ta.rsi(14)
     df["vol_ma"] = df["volume"].rolling(20).mean()
     last = df.iloc[-1]
-    signals = []
+    signals: list[str] = []
     if last["close"] < last["BBL_20_2.0"]:
         signals.append("BUY")
     if last["close"] > last["BBU_20_2.0"]:
@@ -55,7 +53,7 @@ def compute_signals(df):
         overall = "NEUTRAL"
     return overall, df
 
-# App-Logik
+# Daten holen & Signale berechnen
 df = fetch_ohlcv(symbol, timeframe, limit)
 signal, df = compute_signals(df)
 
