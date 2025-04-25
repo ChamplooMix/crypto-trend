@@ -1,5 +1,5 @@
 import numpy as np
-np.NaN = np.nan
+np.NaN = np.nan  # pandas_ta workaround
 
 import streamlit as st
 import ccxt
@@ -8,28 +8,26 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 from collections import Counter
 
+# Seite konfigurieren
 st.set_page_config(
     page_title="Crypto Signals",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# Sidebar-Einstellungen
+# User-Einstellungen in der Sidebar
 symbol = st.sidebar.selectbox(
     "Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT"], index=0
-)
-timeframe = st.sidebar.radio(
-    "Timeframe",
-    ["5m", "15m", "1h", "4h", "1d"],
-    index=0
 )
 limit = st.sidebar.slider(
     "Kerzenanzahl", min_value=50, max_value=500, value=200
 )
 
+# Unterstützte Timeframes
+timeframes = ["5m", "15m", "1h", "4h", "1d"]
+
+# Funktion zum Abrufen von OHLCV mit Fallback
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
-    # Versuche Exchanges in Reihenfolge
     exchanges = [
         ccxt.binance({'enableRateLimit': True}),
         ccxt.kraken({'enableRateLimit': True}),
@@ -49,19 +47,20 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
     st.error("Alle Exchanges nicht verfügbar. Bitte später erneut versuchen.")
     return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
+# Signalberechnung
 
 def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     if df.empty:
         return 'NEUTRAL', df
-    # Bollinger Bänder berechnen
+    # Bollinger Bänder
     bb_df = ta.bbands(df['close'], length=20, std=2)
     df = df.join(bb_df)
-    # RSI berechnen
+    # RSI
     df['RSI'] = ta.rsi(df['close'], length=14)
     # Volumen-MA
     df['vol_ma'] = df['volume'].rolling(20).mean()
     last = df.iloc[-1]
-    signals: list[str] = []
+    signals = []
     if last['close'] < last['BBL_20_2.0']:
         signals.append('BUY')
     if last['close'] > last['BBU_20_2.0']:
@@ -79,39 +78,27 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
         return 'SHORT', df
     return 'NEUTRAL', df
 
-# Hauptlogik
-df = fetch_ohlcv(symbol, timeframe, limit)
-signal, df = compute_signals(df)
-
-# Ausgabe
-st.title(f"📊 Signals: {symbol} [{timeframe}]")
-if df.empty:
-    st.warning('Keine Marktdaten verfügbar. Bitte später erneut versuchen.')
-else:
-    col1, col2 = st.columns((3, 1))
-    with col1:
+# Hauptansicht: Signale und Charts für alle Timeframes
+for tf in timeframes:
+    st.subheader(f"Zeitfenster: {tf}")
+    df_tf = fetch_ohlcv(symbol, tf, limit)
+    signal_tf, df_tf = compute_signals(df_tf)
+    st.metric(label="Signal", value=signal_tf)
+    if not df_tf.empty:
         fig = go.Figure()
-        fig.add_trace(go.Line(x=df.index, y=df['close'], name='Close'))
-        fig.add_trace(
-            go.Line(
-                x=df.index,
-                y=df.get('BBU_20_2.0', []),
-                name='BB Upper',
-                line=dict(dash='dash')
-            )
-        )
-        fig.add_trace(
-            go.Line(
-                x=df.index,
-                y=df.get('BBL_20_2.0', []),
-                name='BB Lower',
-                line=dict(dash='dash')
-            )
-        )
+        fig.add_trace(go.Line(x=df_tf.index, y=df_tf['close'], name='Close'))
+        fig.add_trace(go.Line(
+            x=df_tf.index,
+            y=df_tf.get('BBU_20_2.0', []),
+            name='BB Upper',
+            line=dict(dash='dash')
+        ))
+        fig.add_trace(go.Line(
+            x=df_tf.index,
+            y=df_tf.get('BBL_20_2.0', []),
+            name='BB Lower',
+            line=dict(dash='dash')
+        ))
         st.plotly_chart(fig, use_container_width=True)
-    with col2:
-        st.metric(label='Overall Signal', value=signal)
-        st.markdown('---')
-        st.write('**Details:**')
-        st.write(f"RSI: {df.iloc[-1]['RSI']:.2f}")
-        st.write(f"Volumen vs. MA: {df.iloc[-1]['volume']:.0f} vs. {df.iloc[-1]['vol_ma']:.0f}")
+    else:
+        st.write("Keine Daten verfügbar für dieses Zeitfenster.")
