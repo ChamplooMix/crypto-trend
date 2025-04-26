@@ -37,8 +37,37 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
 
 
 def compute_signals(df: pd.DataFrame) -> str:
+    """
+    Berechnet das Kauf- oder Short-Signal basierend auf RSI-Bollinger-Bändern und Volumen.
+    """
     if df.empty:
         return 'NEUTRAL'
+    # RSI (14)
+    df['RSI'] = ta.rsi(df['close'], length=14)
+    # Volumen-MA (20)
+    df['vol_ma'] = df['volume'].rolling(20).mean()
+    # Bollinger Bänder auf RSI (MA=14, std=2)
+    bb_rsi = ta.bbands(df['RSI'], length=14, std=2)
+    # Umbenennen der Spalten, um Prefix zu entfernen
+    bb_rsi.columns = ['BBL_14_2.0', 'BBM_14_2.0', 'BBU_14_2.0']
+    df = df.join(bb_rsi)
+
+    last = df.iloc[-1]
+    signals = []
+    # RSI-basierte Signale
+    if last['RSI'] < 30 or last['RSI'] < last['BBL_14_2.0']:
+        signals.append('BUY')
+    if last['RSI'] > 70 or last['RSI'] > last['BBU_14_2.0']:
+        signals.append('SHORT')
+    # Volumen-Signal
+    if last['volume'] > last['vol_ma']:
+        signals.append('BUY')
+    cnt = Counter(signals)
+    if cnt.get('BUY', 0) >= 2:
+        return 'BUY'
+    if cnt.get('SHORT', 0) >= 2:
+        return 'SHORT'
+    return 'NEUTRAL'
     # RSI und Volumen-MA
     df['RSI'] = ta.rsi(df['close'], length=14)
     df['vol_ma'] = df['volume'].rolling(20).mean()
