@@ -105,10 +105,10 @@ for tf in timeframes:
     fig.add_trace(go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='#40E0D0')))
     # Bollinger-Bänder
     fig.add_trace(go.Scatter(x=upper.index, y=upper, name='BB Upper', line=dict(color='red')))
-    fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow', dash='dot'))))
+    fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow', dash='dot')))
     fig.add_trace(go.Scatter(x=lower.index, y=lower, name='BB Lower', line=dict(color='green')))
 
-    # Zonenlinien dotted
+    # Zonenlinien als gepunktete Linien
     fig.add_hline(y=70, line=dict(color='red', dash='dot'), annotation_text='Overbought 70')
     fig.add_hline(y=50, line=dict(color='grey', dash='dot'), annotation_text='Mid 50')
     fig.add_hline(y=30, line=dict(color='green', dash='dot'), annotation_text='Oversold 30')
