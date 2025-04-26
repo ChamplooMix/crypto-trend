@@ -12,16 +12,15 @@ from collections import Counter
 st.set_page_config(page_title="Crypto Signals (RSI + BB)", layout="wide")
 
 # Sidebar-Einstellungen
-symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SUI/USDT", "SOL/USDT", "ARPA/USDT"], index=0)
+symbol = st.sidebar.selectbox(
+    "Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SUI/USDT", "SOL/USDT", "ARPA/USDT"], index=0
+)
 limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
 
 timeframes = ["5m", "15m", "1h", "4h", "1d"]
 
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
-    """
-    Versucht mehrfach OHLCV-Daten von verschiedenen Exchanges abzurufen.
-    """
     exchanges = [
         ccxt.binance({'enableRateLimit': True}),
         ccxt.kraken({'enableRateLimit': True}),
@@ -40,24 +39,16 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
 
 
 def compute_signal(df: pd.DataFrame) -> str:
-    """
-    Berechnet das Signal aus RSI-BB und Volumen.
-    """
     if df.empty:
         return 'NEUTRAL'
-    # RSI (14)
     rsi = ta.rsi(df['close'], length=14)
-    # Volumen-MA (20)
     vol_ma = df['volume'].rolling(20).mean()
-    # Bollinger Bänder auf RSI (MA=14, std=2)
     bb = ta.bbands(rsi, length=14, std=2)
-    # Letzte Werte
     last_rsi = rsi.iloc[-1]
     lower = bb.iloc[-1, 0]
     upper = bb.iloc[-1, 2]
     last_vol = df['volume'].iloc[-1]
     last_vol_ma = vol_ma.iloc[-1]
-
     signals = []
     if last_rsi < 30 or last_rsi < lower:
         signals.append('BUY')
@@ -82,7 +73,6 @@ for tf in timeframes:
         st.write("Keine Daten verfügbar für dieses Zeitfenster.")
         continue
 
-    # RSI und Bollinger Bänder für Chart
     rsi = ta.rsi(df_tf['close'], length=14)
     bb = ta.bbands(rsi, length=14, std=2)
     lower = bb.iloc[:, 0]
@@ -90,33 +80,28 @@ for tf in timeframes:
     upper = bb.iloc[:, 2]
 
     fig = go.Figure()
-    # Flächenfüllung zwischen Lower und Upper (50% Transparenz)
+    # Fläche zwischen Lower und Upper (50% Grau)
     fig.add_trace(go.Scatter(
         x=list(upper.index) + list(lower.index[::-1]),
         y=list(upper) + list(lower[::-1]),
-        fill='toself',
-        fillcolor='#999999',
-        opacity=0.5,
-        line=dict(color='#999999'),
-        hoverinfo='skip',
-        showlegend=False
+        fill='toself', fillcolor='#999999', opacity=0.5,
+        line=dict(color='#999999'), hoverinfo='skip', showlegend=False
     ))
-    # RSI-Linie in Türkis
+    # RSI-Linie
     fig.add_trace(go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='#40E0D0')))
     # Bollinger-Bänder
     fig.add_trace(go.Scatter(x=upper.index, y=upper, name='BB Upper', line=dict(color='red')))
-    fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow', dash='dash')))
+    fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow', dash='dot')))
     fig.add_trace(go.Scatter(x=lower.index, y=lower, name='BB Lower', line=dict(color='green')))
-
-    # Zonenlinien als gepunktete Linien
-    fig.add_hline(y=70, line=dict(color='red', dash='dot'), annotation_text='Overbought 70')
-    fig.add_hline(y=50, line=dict(color='grey', dash='dot'), annotation_text='Mid 50')
-    fig.add_hline(y=30, line=dict(color='green', dash='dot'), annotation_text='Oversold 30')
-
+    # Zonenlinien gepunktet
+    fig.add_hline(y=70, line=dict(color='red', dash='dot'))
+    fig.add_hline(y=50, line=dict(color='grey', dash='dot'))
+    fig.add_hline(y=30, line=dict(color='green', dash='dot'))
+    # Grafik-Margin rechts für Platz
     fig.update_layout(
         title=f"{symbol} RSI14 + BB(14,2) [{tf}]",
         yaxis=dict(range=[0,100]),
-        legend=dict(orientation='h', x=0, y=1.1)
+        margin=dict(r=50)
     )
 
     st.plotly_chart(fig, use_container_width=True)
