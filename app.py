@@ -20,7 +20,7 @@ timeframes = ["5m", "15m", "1h", "4h", "1d"]
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
     """
-    Versucht mehrfach, OHLCV von verschiedenen Exchanges zu laden.
+    Versucht mehrfach OHLCV-Daten von verschiedenen Exchanges abzurufen.
     """
     exchanges = [
         ccxt.binance({'enableRateLimit': True}),
@@ -39,70 +39,61 @@ def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
     return pd.DataFrame(columns=['timestamp','open','high','low','close','volume'])
 
 
-def compute_signals(df: pd.DataFrame) -> str:
+def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
     """
-    Gibt BUY, SHORT oder NEUTRAL basierend auf RSI-BB und Volumen.
+    Berechnet Signal und erweitert DF um RSI, Bollinger-Bänder auf RSI und Volumen-MA.
     """
     if df.empty:
-        return 'NEUTRAL'
-    # RSI berechnen
+        return 'NEUTRAL', df
+    # RSI (14)
     df['RSI'] = ta.rsi(df['close'], length=14)
-    # Volumen-MA
+    # Volumen-MA (20)
     df['vol_ma'] = df['volume'].rolling(20).mean()
-    # Bollinger Bänder auf RSI
-    bb_rsi = ta.bbands(df['RSI'], length=14, std=2)
-    df = df.join(bb_rsi)
-
+    # Bollinger Bänder auf RSI (MA=14, std=2)
+    bb = ta.bbands(df['RSI'], length=14, std=2)
+    bb.columns = ['BBL_14_2.0', 'BBM_14_2.0', 'BBU_14_2.0']
+    df = df.join(bb)
+    # Letzte Werte
     last = df.iloc[-1]
     signals = []
-    # RSI unter unterer Band oder <30
-    if last['RSI'] < 30 or last['RSI'] < last[bb_rsi.columns[0]]:
+    # Kaufsignal: RSI unter 30 oder unter unteres Band
+    if last['RSI'] < 30 or last['RSI'] < last['BBL_14_2.0']:
         signals.append('BUY')
-    # RSI über oberer Band oder >70
-    if last['RSI'] > 70 or last['RSI'] > last[bb_rsi.columns[2]]:
+    # Shortsignal: RSI über 70 oder über oberes Band
+    if last['RSI'] > 70 or last['RSI'] > last['BBU_14_2.0']:
         signals.append('SHORT')
     # Volumenbestätigung
     if last['volume'] > last['vol_ma']:
         signals.append('BUY')
     cnt = Counter(signals)
     if cnt.get('BUY', 0) >= 2:
-        return 'BUY'
+        return 'BUY', df
     if cnt.get('SHORT', 0) >= 2:
-        return 'SHORT'
-    return 'NEUTRAL'
+        return 'SHORT', df
+    return 'NEUTRAL', df
 
 # Hauptanzeige: Chart pro Timeframe
 for tf in timeframes:
     st.subheader(f"Zeitfenster: {tf}")
     df_tf = fetch_ohlcv(symbol, tf, limit)
-    sig = compute_signals(df_tf)
+    sig, df_tf = compute_signals(df_tf)
     st.metric(label="Signal", value=sig)
     if df_tf.empty:
-        st.write("Keine Daten verfügbar.")
+        st.write("Keine Daten verfügbar für dieses Zeitfenster.")
         continue
-
-    # Spalten für BB
-    bb_cols = [c for c in df_tf.columns if c.startswith('BB') and '14_2.0' in c]
-    bb_cols = sorted(bb_cols)  # [lower, middle, upper]
-    lower, middle, upper = bb_cols
-
-    # Plot erstellen
+    # Plot: RSI und Bollinger Bands auf RSI
     fig = go.Figure()
-    # RSI
     fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['RSI'], name='RSI', line=dict(color='cyan')))
-    # BB-Linien
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf[upper], name='BB Upper', line=dict(color='red', dash='dash')))
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf[middle], name='BB Middle', line=dict(color='yellow')))
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf[lower], name='BB Lower', line=dict(color='green', dash='dash')))
+    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['BBU_14_2.0'], name='BB Upper', line=dict(color='red', dash='dash')))
+    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['BBM_14_2.0'], name='BB Middle', line=dict(color='yellow')))
+    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['BBL_14_2.0'], name='BB Lower', line=dict(color='green', dash='dash')))
     # Zonenlinien
-    fig.add_hline(y=70, line=dict(color='red', dash='dash'), annotation_text='Overbought')
+    fig.add_hline(y=70, line=dict(color='red', dash='dash'), annotation_text='Overbought 70')
     fig.add_hline(y=50, line=dict(color='grey', dash='dot'), annotation_text='Mid 50')
-    fig.add_hline(y=30, line=dict(color='green', dash='dash'), annotation_text='Oversold')
-
+    fig.add_hline(y=30, line=dict(color='green', dash='dash'), annotation_text='Oversold 30')
     fig.update_layout(
         title=f"{symbol} RSI14 + BB(14,2) [{tf}]",
         yaxis=dict(range=[0,100]),
         legend=dict(orientation='h', x=0, y=1.1)
     )
-
     st.plotly_chart(fig, use_container_width=True)
