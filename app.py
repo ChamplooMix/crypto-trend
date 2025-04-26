@@ -12,7 +12,7 @@ from collections import Counter
 st.set_page_config(page_title="Crypto Signals (RSI + BB)", layout="wide")
 
 # Sidebar-Einstellungen
-symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "SUI/USDT", "SOL/USDT", "XRP/USDT", "AVAX/USDT"], index=0)
+symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT"], index=0)
 limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
 
 timeframes = ["5m", "15m", "1h", "4h", "1d"]
@@ -90,24 +90,24 @@ for tf in timeframes:
     upper = bb.iloc[:, 2]
 
     fig = go.Figure()
-    # Graue Flächenfüllung zwischen Lower und Upper
+    # Graue Flächenfüllung zwischen Lower und Upper (dunkleres Grau)
     fig.add_trace(go.Scatter(
         x=list(upper.index) + list(lower.index[::-1]),
         y=list(upper) + list(lower[::-1]),
         fill='toself',
-        fillcolor='lightgrey',
-        line=dict(color='lightgrey'),
+        fillcolor='#999999',
+        line=dict(color='#999999'),
         hoverinfo='skip',
         showlegend=False
     ))
-    # RSI-Linie
-    fig.add_trace(go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='blue')))
+    # RSI-Linie in Türkis
+    fig.add_trace(go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='#40E0D0')))
     # Bollinger-Bänder als solide Linien
     fig.add_trace(go.Scatter(x=upper.index, y=upper, name='BB Upper', line=dict(color='red')))
     fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='orange')))
     fig.add_trace(go.Scatter(x=lower.index, y=lower, name='BB Lower', line=dict(color='green')))
 
-    # Zonenlinien
+    # Zonenlinien als solide Linien
     fig.add_hline(y=70, line=dict(color='red', dash='solid'), annotation_text='Overbought 70')
     fig.add_hline(y=50, line=dict(color='grey', dash='solid'), annotation_text='Mid 50')
     fig.add_hline(y=30, line=dict(color='green', dash='solid'), annotation_text='Oversold 30')
