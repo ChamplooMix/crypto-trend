@@ -76,21 +76,32 @@ def compute_signals(df: pd.DataFrame) -> tuple[str, pd.DataFrame]:
 for tf in timeframes:
     st.subheader(f"Zeitfenster: {tf}")
     df_tf = fetch_ohlcv(symbol, tf, limit)
-    sig, df_tf = compute_signals(df_tf)
+    sig, _ = compute_signals(df_tf)
     st.metric(label="Signal", value=sig)
     if df_tf.empty:
         st.write("Keine Daten verfügbar für dieses Zeitfenster.")
         continue
-    # Plot: RSI und Bollinger Bands auf RSI
+
+    # RSI-Berechnung
+    rsi = ta.rsi(df_tf['close'], length=14)
+    # Bollinger Bänder auf RSI
+    bb_rsi = ta.bbands(rsi, length=14, std=2)
+    # Spalten
+    lower = bb_rsi.iloc[:, 0]
+    middle = bb_rsi.iloc[:, 1]
+    upper = bb_rsi.iloc[:, 2]
+
+    # Plot erstellen
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['RSI'], name='RSI', line=dict(color='cyan')))
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['BBU_14_2.0'], name='BB Upper', line=dict(color='red', dash='dash')))
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['BBM_14_2.0'], name='BB Middle', line=dict(color='yellow')))
-    fig.add_trace(go.Scatter(x=df_tf.index, y=df_tf['BBL_14_2.0'], name='BB Lower', line=dict(color='green', dash='dash')))
+    fig.add_trace(go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='cyan')))
+    fig.add_trace(go.Scatter(x=upper.index, y=upper, name='BB Upper', line=dict(color='red', dash='dash')))
+    fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow')))
+    fig.add_trace(go.Scatter(x=lower.index, y=lower, name='BB Lower', line=dict(color='green', dash='dash')))
     # Zonenlinien
     fig.add_hline(y=70, line=dict(color='red', dash='dash'), annotation_text='Overbought 70')
     fig.add_hline(y=50, line=dict(color='grey', dash='dot'), annotation_text='Mid 50')
     fig.add_hline(y=30, line=dict(color='green', dash='dash'), annotation_text='Oversold 30')
+
     fig.update_layout(
         title=f"{symbol} RSI14 + BB(14,2) [{tf}]",
         yaxis=dict(range=[0,100]),
