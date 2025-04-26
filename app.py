@@ -12,7 +12,7 @@ from collections import Counter
 st.set_page_config(page_title="Crypto Signals (RSI + BB)", layout="wide")
 
 # Sidebar-Einstellungen
-symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT"], index=0)
+symbol = st.sidebar.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SUI/USDT", "SOL/USDT", "ARPA/USDT"], index=0)
 limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
 
 timeframes = ["5m", "15m", "1h", "4h", "1d"]
