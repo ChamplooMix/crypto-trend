@@ -6,21 +6,28 @@ import ccxt
 import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from collections import Counter
 
 # Seite konfigurieren
-st.set_page_config(page_title="Crypto Signals (RSI + BB)", layout="wide")
+st.set_page_config(page_title="Crypto Signals (RSI + BB + Vol)", layout="wide")
 
 # Sidebar-Einstellungen
 symbol = st.sidebar.selectbox(
-    "Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SUI/USDT", "SOL/USDT", "ARPA/USDT"], index=0
+    "Symbol", ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SUI/USDT", "SOL/USDT", "ARPA/USDT"],
+    index=0
 )
-limit = st.sidebar.slider("Kerzenanzahl", min_value=50, max_value=500, value=200)
+limit = st.sidebar.slider(
+    "Kerzenanzahl", min_value=50, max_value=500, value=200
+)
 
 timeframes = ["5m", "15m", "1h", "4h", "1d"]
 
 @st.cache_data
 def fetch_ohlcv(symbol: str, tf: str, lim: int) -> pd.DataFrame:
+    """
+    Versucht mehrfach OHLCV-Daten von verschiedenen Exchanges abzurufen.
+    """
     exchanges = [
         ccxt.binance({'enableRateLimit': True}),
         ccxt.kraken({'enableRateLimit': True}),
@@ -63,7 +70,7 @@ def compute_signal(df: pd.DataFrame) -> str:
         return 'SHORT'
     return 'NEUTRAL'
 
-# Hauptanzeige: Chart pro Timeframe
+# Hauptanzeige: Chart pro Timeframe mit Volumenbars
 for tf in timeframes:
     st.subheader(f"Zeitfenster: {tf}")
     df_tf = fetch_ohlcv(symbol, tf, limit)
@@ -73,35 +80,54 @@ for tf in timeframes:
         st.write("Keine Daten verfügbar für dieses Zeitfenster.")
         continue
 
+    # Berechnungen
     rsi = ta.rsi(df_tf['close'], length=14)
     bb = ta.bbands(rsi, length=14, std=2)
     lower = bb.iloc[:, 0]
     middle = bb.iloc[:, 1]
     upper = bb.iloc[:, 2]
 
-    fig = go.Figure()
-    # Fläche zwischen Lower und Upper (50% Grau)
-    fig.add_trace(go.Scatter(
-        x=list(upper.index) + list(lower.index[::-1]),
-        y=list(upper) + list(lower[::-1]),
-        fill='toself', fillcolor='#999999', opacity=0.5,
-        line=dict(color='#999999'), hoverinfo='skip', showlegend=False
-    ))
-    # RSI-Linie
-    fig.add_trace(go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='#40E0D0')))
-    # Bollinger-Bänder
-    fig.add_trace(go.Scatter(x=upper.index, y=upper, name='BB Upper', line=dict(color='red')))
-    fig.add_trace(go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow', dash='dot')))
-    fig.add_trace(go.Scatter(x=lower.index, y=lower, name='BB Lower', line=dict(color='green')))
-    # Zonenlinien gepunktet
-    fig.add_hline(y=70, line=dict(color='red', dash='dot'))
-    fig.add_hline(y=50, line=dict(color='grey', dash='dot'))
-    fig.add_hline(y=30, line=dict(color='green', dash='dot'))
-    # Grafik-Margin rechts für Platz
+    # Subplots: RSI+BB und Volumen
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        row_heights=[0.7, 0.3], vertical_spacing=0.02
+    )
+
+    # RSI und BB im oberen Subplot
+    fig.add_trace(
+        go.Scatter(x=rsi.index, y=rsi, name='RSI', line=dict(color='#40E0D0')),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=upper.index, y=upper, name='BB Upper', line=dict(color='red')),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=middle.index, y=middle, name='BB Middle', line=dict(color='yellow', dash='dot')),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=lower.index, y=lower, name='BB Lower', line=dict(color='green')),
+        row=1, col=1
+    )
+    # Zonenlinien
+    fig.add_hline(y=70, line=dict(color='red', dash='dot'), row=1, col=1)
+    fig.add_hline(y=50, line=dict(color='grey', dash='dot'), row=1, col=1)
+    fig.add_hline(y=30, line=dict(color='green', dash='dot'), row=1, col=1)
+
+    # Volumen als Balken im unteren Subplot
+    fig.add_trace(
+        go.Bar(x=df_tf.index, y=df_tf['volume'], name='Volumen', marker_color='lightgrey'),
+        row=2, col=1
+    )
+
+    # Layout-Anpassungen
+    fig.update_yaxes(range=[0,100], row=1, col=1, title_text='RSI')
+    fig.update_yaxes(title_text='Volumen', row=2, col=1)
     fig.update_layout(
-        title=f"{symbol} RSI14 + BB(14,2) [{tf}]",
-        yaxis=dict(range=[0,100]),
-        margin=dict(r=50)
+        title_text=f"{symbol} RSI14 + BB(14,2) + Volumen [{tf}]",
+        showlegend=False,
+        margin=dict(r=50, t=40)
     )
 
     st.plotly_chart(fig, use_container_width=True)
