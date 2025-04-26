@@ -90,12 +90,13 @@ for tf in timeframes:
     upper = bb.iloc[:, 2]
 
     fig = go.Figure()
-    # Graue Flächenfüllung zwischen Lower und Upper (dunkleres Grau)
+    # Graue Flächenfüllung zwischen Lower und Upper (50% Transparenz)
     fig.add_trace(go.Scatter(
         x=list(upper.index) + list(lower.index[::-1]),
         y=list(upper) + list(lower[::-1]),
         fill='toself',
         fillcolor='#999999',
+        opacity=0.5,
         line=dict(color='#999999'),
         hoverinfo='skip',
         showlegend=False
