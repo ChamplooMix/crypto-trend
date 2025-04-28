@@ -124,8 +124,14 @@ for tf in timeframes:
     # Layout-Anpassungen
     fig.update_yaxes(range=[0,100], row=1, col=1, title_text='RSI')
     fig.update_yaxes(title_text='Volumen', row=2, col=1)
+        # X-Achse komprimieren (20% rechts & links leer lassen)
+    fig.update_xaxes(domain=[0.1, 0.9], row=1, col=1)
+    fig.update_xaxes(domain=[0.1, 0.9], row=2, col=1)
     fig.update_layout(
         title_text=f"{symbol} RSI14 + BB(14,2) + Volumen [{tf}]",
+        showlegend=False,
+        margin=dict(r=50, t=40)
+    ) + Volumen [{tf}]",
         showlegend=False,
         margin=dict(r=50, t=40)
     )
